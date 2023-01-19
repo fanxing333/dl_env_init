@@ -4,6 +4,17 @@ from torch.utils.data import DataLoader
 from torchvision import datasets
 from torchvision.transforms import ToTensor
 
+import logging
+import time
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+ch = logging.FileHandler(filename="training_log.log")
+ch.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+
 def get_MNIST_data():
     # Download training data from open datasets.
     training_data_ = datasets.MNIST(
@@ -58,6 +69,8 @@ class NeuralNetwork(nn.Module):
 def train(dataloader, model_, loss_fn_, optimizer_):
     size = len(dataloader.dataset)
     model_.train()
+
+    time_start = time.time()
     for batch, (X, y) in enumerate(dataloader):
         X, y = X.to(device), y.to(device)
 
@@ -71,8 +84,10 @@ def train(dataloader, model_, loss_fn_, optimizer_):
         optimizer_.step()
 
         if batch % 100 == 0:
+            time_gap = time.time() - time_start
+            time_start = time.time()
             loss, current = loss.item(), batch * len(X)
-            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+            logger.info(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}] [{time_gap:>2f}]")
 
 def test(dataloader, model_, loss_fn_):
     size = len(dataloader.dataset)
@@ -87,7 +102,7 @@ def test(dataloader, model_, loss_fn_):
             correct += (pred.argmax(1) == y).type(torch.float).sum().item()
     test_loss /= num_batches
     correct /= size
-    print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+    logger.info(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
 
 if __name__ == "__main__":
     my_conf = Config(
@@ -106,17 +121,20 @@ if __name__ == "__main__":
 
     # Get cpu or gpu device for training.
     device = my_conf.device_
-    print(f"Using {device} device")
+    logger.info(f"Using {device} device")
 
     model = NeuralNetwork().to(device)
-    print(model)
+    logger.info(model)
 
     loss_fn = my_conf.loss_function_
     optimizer = my_conf.optimizer_(model.parameters(), lr=1e-3)
 
     epochs = my_conf.epoch_
+    start = time.time()
     for t in range(epochs):
-        print(f"Epoch {t + 1}\n-------------------------------")
+        gap = time.time() - start
+        start = time.time()
+        logger.info(f"Epoch {t + 1}\n-------------------------------{gap:>3f}")
         train(train_dataloader, model, loss_fn, optimizer)
         test(test_dataloader, model, loss_fn)
-    print("Done!")
+    logger.info("Done!")
